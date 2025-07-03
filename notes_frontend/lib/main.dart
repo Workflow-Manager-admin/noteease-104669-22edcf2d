@@ -37,6 +37,46 @@ void main() {
 }
 
 // PUBLIC_INTERFACE
+class SettingsAboutPage extends StatelessWidget {
+  /// Minimal Settings/About page for the app.
+  const SettingsAboutPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Replace with any other required information/settings
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings & About'),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'NoteEase',
+              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 10),
+            Text(
+              'A simple and minimalistic notes app.',
+              style: TextStyle(fontSize: 16),
+            ),
+            Divider(height: 40),
+            Text('Version: 1.0.0', style: TextStyle(fontSize: 14)),
+            SizedBox(height: 6),
+            Text('Created for demonstration purposes.', style: TextStyle(fontSize: 14)),
+            SizedBox(height: 20),
+            // Add more settings/about fields here
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// PUBLIC_INTERFACE
 class NotesApp extends StatelessWidget {
   /// Root of the Notes app with custom light, minimalistic theme.
   const NotesApp({super.key});
@@ -107,15 +147,32 @@ class NotesApp extends StatelessWidget {
           contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         ),
       ),
-      home: const NotesListPage(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const NotesListPage(showDrawer: true), // Main notes screen with drawer
+        '/about': (context) => const SettingsAboutPage(),
+      },
+      onGenerateRoute: (settings) {
+        // For NoteDetailPage; settings.arguments can be a Note to edit, or null for new
+        if (settings.name == '/note') {
+          final noteArg = settings.arguments;
+          return MaterialPageRoute(
+            builder: (_) => NoteDetailPage(note: noteArg is Note ? noteArg : null),
+          );
+        }
+        return null;
+      },
     );
   }
 }
 
-// PUBLIC_INTERFACE
+/// Home page displaying a minimalistic list of notes, supporting add/delete and navigation drawer.
 class NotesListPage extends StatefulWidget {
-  /// Home page displaying a minimalistic list of notes, supporting add/delete.
-  const NotesListPage({super.key});
+  final bool showDrawer;
+  // showDrawer should be true for main screen so user can access about/settings, false if used as standalone
+
+  // PUBLIC_INTERFACE
+  const NotesListPage({super.key, this.showDrawer = false});
 
   @override
   State<NotesListPage> createState() => _NotesListPageState();
@@ -171,19 +228,19 @@ class _NotesListPageState extends State<NotesListPage> {
     await _saveNotes();
   }
 
-  /// Navigates to detail/edit page.
+  /// Navigates to detail/edit page or to the note creation page (empty note).
   Future<void> _goToNoteDetails({Note? note}) async {
-    final result = await Navigator.push<NoteActionResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => NoteDetailPage(note: note),
-      ),
+    final result = await Navigator.of(context).pushNamed<NoteActionResult>(
+      '/note',
+      arguments: note,
     );
+    // result will be NoteActionResult
     if (result == null) return;
-    if (result.deleted) {
-      await _deleteNote(result.note!);
-    } else if (result.note != null) {
-      await _upsertNote(result.note!);
+    final res = result;
+    if (res.deleted) {
+      await _deleteNote(res.note!);
+    } else if (res.note != null) {
+      await _upsertNote(res.note!);
     }
   }
 
@@ -225,6 +282,43 @@ class _NotesListPageState extends State<NotesListPage> {
               )
             ],
       ),
+      drawer: widget.showDrawer ? Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary
+              ),
+              child: const Text(
+                'NoteEase',
+                style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.list),
+              title: const Text('Notes List'),
+              onTap: () {
+                Navigator.of(context).pushReplacementNamed('/');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('Create Note'),
+              onTap: () {
+                Navigator.of(context).pushNamed('/note');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text('Settings/About'),
+              onTap: () {
+                Navigator.of(context).pushNamed('/about');
+              },
+            ),
+          ],
+        ),
+      ) : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _notes.isEmpty
